@@ -1,0 +1,9 @@
+ROW, COL = 18, 5
+GRID_SIZE = 64
+WIDTH, HEIGHT = ROW * GRID_SIZE, COL * GRID_SIZE
+FPS = 60
+TITLE = "Tower Defense"
+
+#Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
