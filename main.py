@@ -2,8 +2,10 @@ import pygame
 from settings import *
 from level import Level
 
+#Initializing pygame
 pygame.init()
 
+# Main Game
 class Game:
     def __init__(self,width,height,title,fps):
         self.screen = pygame.display.set_mode((width, height))
@@ -19,9 +21,10 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.loop = False
-                self.level.handle_input(event)
+                self.level.handle_input(event) # Handles all the input in the level
+                self.level.sidebar.handle_input(event) # Handles all the input in the sidebar 
 
-            self.screen.fill((50,50,50))
+            self.screen.fill((50,50,50)) # My preffered color for background
             self.level.draw()
             self.level.update()
             pygame.display.update()

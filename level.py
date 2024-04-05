@@ -1,18 +1,48 @@
 import pygame
 from sprite import Sprite, EnemySprite
 from settings import *
+from sidebar import Sidebar
 
 class Level:
     def __init__(self):
         self.display_surface = pygame.display.get_surface()
         self.grid = Grid(ROW, COL, self.display_surface)
 
+        #Contains all the sprites placed in the level
         self.placed_sprites = pygame.sprite.Group()
+        # Contains all the sprites which help the enemy to rotate (Direction triangles)
         self.rotation_sprites = pygame.sprite.Group()
-        self.test_sprite = Sprite("dir_triangle.png",(-100,-100))
-        self.enemy_sprite = EnemySprite("assets/enemy/tank_0.png",self.grid.get_pos((17,0),False,False),0)
+
+        # Single enemy sprite for early testing
+        self.enemy_sprite = EnemySprite("assets/enemy/tank_0.png",self.grid.get_pos((0,0),False,False),0)
         self.placed_sprites.add(self.enemy_sprite)
-        self.selected_sprite = None
+        
+        self.selected_sprite = None # Selected sprite which will be placed in the level
+        self.mouse_sprite = self.set_mouse_sprite("") # Sprite which will follow the mouse
+        self.mouse_spr_img_path = "" # Image path of the mouse sprite (to create and place a new sprite)
+        
+        self.pause_frames = 0 # Used to stop some actions for a specific amount of frames
+
+        self.test_num = 0
+
+        self.sidebar = Sidebar((WIDTH - (SIDEBAR_SIZE*GRID_SIZE), 0),(self.set_mouse_sprite,IMAGE_BUTTON_COMMAND),(self.set_mouse_sprite,IMAGE_BUTTON_COMMAND),(self.set_enemy_number))
+
+    def set_enemy_number(self,num):
+        if num:
+            self.test_num = int(num)
+        else:
+            self.test_num = 0
+
+    def set_mouse_sprite(self,image_path):
+        if image_path:
+            if image_path == self.mouse_spr_img_path:
+                self.mouse_sprite = ""
+                self.mouse_spr_img_path = ""
+            else:
+                self.mouse_sprite = Sprite(image_path,(-100,100))
+                self.mouse_spr_img_path = image_path
+        else:
+            self.mouse_sprite = ""
 
     def handle_input(self, event):
         if event.type == pygame.MOUSEMOTION:
@@ -23,7 +53,9 @@ class Level:
             self.handle_key_down(event)
 
     def handle_mouse_motion(self, pos):
-        self.test_sprite.rect.center = self.grid.get_pos(pos, True, True)
+        if self.mouse_sprite:
+            if pos[0] < WIDTH - (SIDEBAR_SIZE * GRID_SIZE):
+                self.mouse_sprite.rect.center = self.grid.get_pos(pos, True, True)
 
     def handle_mouse_button(self, pos, button):
         if button == pygame.BUTTON_RIGHT:
@@ -31,12 +63,28 @@ class Level:
         elif button == pygame.BUTTON_LEFT:
             self.handle_left_click(pos)
 
-    def handle_right_click(self, pos):
-        grid_pos = self.grid.get_pos(pos, True, False)
-        if not self.grid.grid[grid_pos[0]][grid_pos[1]]:
-            sprite = Sprite("dir_triangle.png", self.grid.get_pos(pos, True, True))
-            self.placed_sprites.add(sprite)
+    def check_sprite_type(self,spr_img_path,sprite):
+        if spr_img_path in DEFENCE:
+            pass
+        elif spr_img_path in DIRECTION:
             self.rotation_sprites.add(sprite)
+        elif spr_img_path in ENEMY:
+            pass
+
+    def handle_right_click(self, pos):
+        if self.mouse_sprite:
+            try:
+                grid_pos = self.grid.get_pos(pos, True, False)
+                if not self.grid.grid[grid_pos[0]][grid_pos[1]]:
+                    sprite = Sprite(self.mouse_spr_img_path, self.grid.get_pos(pos, True, True))
+                    
+                    self.placed_sprites.add(sprite)
+                    self.check_sprite_type(self.mouse_spr_img_path,sprite)
+                    
+                    self.grid.grid[grid_pos[0]][grid_pos[1]] = "x"
+            
+            except IndexError:
+                pass
 
     def handle_left_click(self, pos):
         for sprite in self.placed_sprites.sprites():
@@ -50,66 +98,63 @@ class Level:
         if self.selected_sprite in self.rotation_sprites.sprites():
             if event.key == pygame.K_LEFT:
                 self.selected_sprite.change_rotation(90)
+
             elif event.key == pygame.K_RIGHT:
                 self.selected_sprite.change_rotation(-90)
-            elif event.key == pygame.K_x:
+
+        if event.key == pygame.K_x:
+            if self.selected_sprite:
                 self.selected_sprite.kill()
-        if event.key == pygame.K_s:
-            self.enemy_sprite.speed = 5
+                selected_grid = self.grid.get_pos(self.selected_sprite.rect.center,True,False)
+                self.grid.grid[selected_grid[0]][selected_grid[1]] = ""
 
-    def check_in_between(self,left,between,right):
-        x, y = False, False
-        left_x, left_y = left[0] , left[1]
-        between_x, between_y = between[0], between[1]
-        right_x, right_y = right[0], right[1]
-        if right_x > left_x:
-            if left_x <= between_x and right_x >= between_x:
-                x = True
-        else:
-            if right_x <= between_x and left_x >= between_x:
-                x = True
-        if right_y > left_y:
-            if left_y <= between_y and right_y >= between_y:
-                y = True
-        else:
-            if right_y <= between_y and left_y >= between_y:
-                y = True
-        
-        return x and y
-        
-    def friend_collision(self):
-        offset = (0,0)
-        for sprite in self.placed_sprites.sprites():
-            offset = pygame.Vector2(offset).elementwise() * self.enemy_sprite.rect.size
-            if pygame.Rect(self.enemy_sprite.rect.topleft + offset, self.enemy_sprite.rect.size).colliderect(sprite.rect):
-                if self.enemy_sprite.direction == "up":
-                    offset = 0, -1
-                elif self.enemy_sprite.direction == "left":
-                    offset = 1, 0
-                elif self.enemy_sprite.direction == "down":
-                    offset = 0, 1
-                elif self.enemy_sprite.direction == "right":
-                    offset = -1, 0
+        elif event.key == pygame.K_s:
+            if self.enemy_sprite.speed == 5:
+                self.enemy_sprite.speed = 0
+                
+            else:
+                self.enemy_sprite.speed = 5
 
+    def check_in_between(self,player, enemy):
+        return player.collidepoint(enemy.center)
+
+    def set_rotation(self,rotation):
+        if rotation == 0: 
+            self.enemy_sprite.direction = "up"
+        elif rotation == 90: 
+            self.enemy_sprite.direction = "left"
+        elif rotation == 180: 
+            self.enemy_sprite.direction = "down"
+        elif rotation == 270: 
+            self.enemy_sprite.direction = "right"
+        self.enemy_sprite.set_rotation(rotation)
+    
     def check_collision(self):
+        self.pause_frames += 1
         for sprite in self.rotation_sprites.sprites():
-            if self.check_in_between(self.enemy_sprite.prev_pos,sprite.rect.center,self.enemy_sprite.rect.center):
-                print('COLLIDES')
-                if sprite.rotation == 0: 
-                    self.enemy_sprite.direction = "up"
-                elif sprite.rotation == 90: 
-                    self.enemy_sprite.direction = "left"
-                elif sprite.rotation == 180: 
-                    self.enemy_sprite.direction = "down"
-                elif sprite.rotation == 270: 
-                    self.enemy_sprite.direction = "right"
+            if self.check_in_between(self.enemy_sprite.rect,sprite.rect):
+                #Allign the enemy sprite at the center of the grid and removes the collision
+                self.enemy_sprite.rect.center = sprite.rect.center
+                sprite.rect.width, sprite.rect.height = 0, 0
 
+                self.set_rotation(sprite.rotation)
+                
+        if self.pause_frames >= 8: #Removes collision from the triangles for 8 frames
+                                #to allign the enemy sprite and move ahead without stucking
+            for sprite in self.rotation_sprites.sprites():
+                sprite.rect.width, sprite.rect.height = sprite.image.get_width(), sprite.image.get_height()
+                self.pause_frames = 0
+                
     def draw(self):
         self.grid.draw_grid()
+        self.sidebar.draw()
         self.placed_sprites.draw(self.display_surface)
         for sprite in self.placed_sprites.sprites():
             pygame.draw.rect(self.display_surface,(255,0,0),sprite.rect,1)
-        self.display_surface.blit(self.test_sprite.image,self.test_sprite.rect)
+        if self.mouse_sprite:
+            self.display_surface.blit(self.mouse_sprite.image,self.mouse_sprite.rect)
+        num_surf = FONT.render(str(self.test_num),True,(255,255,255))
+        self.display_surface.blit(num_surf,(0,0))
 
     def update(self):
         self.enemy_sprite.move()
@@ -129,10 +174,10 @@ class Grid:
                 self.grid[i].append("")
 
     def draw_grid(self):
-        for i in range(self.row):
+        for i in range(self.row + 1):
             pygame.draw.line(self.display_surf,(WHITE),(i*GRID_SIZE,0),(i*GRID_SIZE,HEIGHT))
-        for i in range(self.col):
-            pygame.draw.line(self.display_surf,(WHITE),(0,i*GRID_SIZE),(WIDTH,i*GRID_SIZE))
+        for i in range(self.col + 1):
+            pygame.draw.line(self.display_surf,(WHITE),(0,i*GRID_SIZE),((WIDTH - (SIDEBAR_SIZE * GRID_SIZE)),i*GRID_SIZE))
 
     def get_pos(self,pos,grid_pos,centered): # If grid_pos: window_pos -> grid_pos else: grid_pos -> window_pos
         if grid_pos:
@@ -142,7 +187,7 @@ class Grid:
                 centered_x = (grid_x * GRID_SIZE + ((grid_x * GRID_SIZE) + GRID_SIZE)) // 2
                 centered_y = (grid_y * GRID_SIZE + ((grid_y * GRID_SIZE) + GRID_SIZE)) // 2
                 return (centered_x,centered_y)
-            return (grid_x,grid_y)
+            return(grid_x,grid_y)
         else:
             main_x = pos[0] * GRID_SIZE
             main_y = pos[1] * GRID_SIZE

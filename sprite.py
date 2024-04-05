@@ -5,7 +5,7 @@ class Sprite(pygame.sprite.Sprite):
         super().__init__()
         self.image = pygame.image.load(image_path)
         self.rect = self.image.get_rect(center = pos)
-        self.id = id
+        self.original_image = self.image
         self.rotation = 0
 
     def change_rotation(self,rotation):
@@ -14,11 +14,16 @@ class Sprite(pygame.sprite.Sprite):
         elif self.rotation >= 360: self.rotation = 0
         self.image = pygame.transform.rotate(self.image,rotation)
 
+    def set_rotation(self,rotation):
+        self.image = self.original_image
+        self.image = pygame.transform.rotate(self.image,rotation)
+
 class EnemySprite(Sprite):
     def __init__(self,image_path,pos,speed):
         super().__init__(image_path,pos)
         self.speed = speed
-        self.direction = "down"
+        self.direction = "right"
+        self.set_rotation(270)
 
     def move(self):
         self.prev_pos = self.rect.center
